@@ -1,0 +1,36 @@
+name: Healthcare Enterprise CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build-verify:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 1. Pull Source Code
+      uses: actions/checkout@v4
+
+    - name: 2. Set up Python Runtime
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: 3. Verify Script Syntax Integrity
+      run: |
+        python -m pip install --upgrade pip
+        python -m py_compile app.py
+
+    - name: 4. Configure Virtual Buildx Engine
+      uses: docker/setup-buildx-action@v3
+
+    - name: 5. Compile and Scan Docker Image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: false
+        tags: healthcare-app:latest
+
+
