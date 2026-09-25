@@ -46,7 +46,7 @@ resource "aws_instance" "healthcare_server" {
   vpc_security_group_ids = [aws_security_group.healthcare_sg.id]
 
   tags = {
-    Name = "Healthcare-Production-Host"
+    Name    = "Healthcare-Production-Host"
     Project = "healthcare-insurance-pipeline"
   }
 }
