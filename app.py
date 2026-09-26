@@ -1,27 +1,34 @@
 import os
-from http.server import SimpleHTTPRequestHandler, HTTPServer
+import logging
+import sys
 
-class HealthcareApp(SimpleHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/plain")
-        self.end_headers()
-        output = "==================================================\n"
-        output += "  HEALTHCARE & INSURANCE ENTERPRISE DATA CLUSTER   \n"
-        output += "==================================================\n\n"
-        for root, dirs, files in sorted(os.walk(".")):
-            if ".git" in root or "Dockerfile" in files:
-                continue
-            level = root.replace('.', '').count(os.sep)
-            indent = ' ' * 4 * (level)
-            output += f"{indent}[+] {os.path.basename(root)}/\n"
-            subindent = ' ' * 4 * (level + 1)
-            for f in sorted(files):
-                if f != "app.py" and f != "Dockerfile":
-                    output += f"{subindent}└── [File] {f}\n"
-        self.wfile.write(output.encode())
+# Configure core logging framework to stream out to stdout/stderr
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] Tenant=%(processName)s File=%(filename)s: %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger("carrier-routing-tier")
 
-print("Enterprise App serving on port 8080...")
-HTTPServer(('0.0.0.0', 8080), HealthcareApp).serve_forever()
+def process_carrier_stream():
+    # Read the container environment injections we mapped out in k8s/TF
+    carrier = os.getenv("CARRIER_NAME", "unknown-carrier")
+    lob = os.getenv("LINE_OF_BUSINESS", "unknown-lob")
+    bucket = os.getenv("AWS_S3_BUCKET", "unknown-bucket")
+    
+    logger.info(f"Booting application context for {carrier} ({lob} line). Binding to cloud bucket: {bucket}")
+    
+    # Mock routing sequence
+    try:
+        # If your app tries to handle an unencrypted file or data leak, trigger an alert
+        if bucket == "unknown-bucket":
+            raise ValueError("HIPAA Violation Warning: Attempted to process protected health information without an explicit target S3 Bucket!")
+        
+        logger.info(f"Successfully processed batch data lifecycle for tenant: {carrier}")
+        
+    except Exception as e:
+        # CRITICAL: This exact string pattern 'ERROR' trips your CloudWatch metric filter alarm!
+        logger.error(f"[ERROR] Critical transaction failure in {carrier}-{lob} stack. Details: {str(e)}")
 
-
+if __name__ == "__main__":
+    process_carrier_stream()
