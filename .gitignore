@@ -1,4 +1,33 @@
+# --- Terraform local files ---
 .terraform/
-.terraform.lock.hcl
 *.tfstate
-*.tfstate.backup
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# --- Variable files that may hold secrets ---
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# --- Backups from sed/editing ---
+*.bak
+*~
+*.swp
+
+# --- Nested copy from cloning inside the repo (holds an old state file) ---
+healthcare-insurance/
+
+# --- Python / OS ---
+__pycache__/
+*.pyc
+.env
+.DS_Store
