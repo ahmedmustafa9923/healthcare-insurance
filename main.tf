@@ -41,7 +41,7 @@ resource "aws_security_group" "healthcare_sg" {
 resource "aws_instance" "healthcare_server" {
   ami           = "ami-053b0d53c279acc90" # Verified production baseline for Amazon Linux 2023
   instance_type = "t3.medium"
-  key_name      = "germancar"
+  key_name      = "GermanDrive"
 
   vpc_security_group_ids = [aws_security_group.healthcare_sg.id]
 
