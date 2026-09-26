@@ -45,7 +45,7 @@ resource "aws_iam_role" "app_role" {
     Statement = [{
       Action    = "sts:AssumeRole"
       Effect    = "Allow"
-      Principal = { Service = "://amazonaws.com" }
+      Principal = { Service = "ec2.amazonaws.com" }
     }]
   })
 }
@@ -80,8 +80,8 @@ resource "aws_cloudwatch_metric_alarm" "application_error_alarm" {
   alarm_name          = "critical-error-alarm-${var.carrier_name}-${var.line_of_business}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "1"
-  metric_name         = aws_cloudwatch_log_metric_filter.error_filter.metric_transformation.name
-  namespace           = aws_cloudwatch_log_metric_filter.error_filter.metric_transformation.namespace
+  metric_name         = aws_cloudwatch_log_metric_filter.error_filter.metric_transformation[0].name
+  namespace           = aws_cloudwatch_log_metric_filter.error_filter.metric_transformation[0].namespace
   period              = "300"
   statistic           = "Sum"
   threshold           = "5"
