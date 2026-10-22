@@ -1,5 +1,5 @@
 data "aws_instance" "healthcare_server" {
-  instance_id = "i-0be46f4f125247928" # your instance ID
+  instance_id = var.monitored_instance_id
 }
 
 resource "aws_sns_topic" "alerts" {
@@ -9,7 +9,7 @@ resource "aws_sns_topic" "alerts" {
 resource "aws_sns_topic_subscription" "email" {
   topic_arn = aws_sns_topic.alerts.arn
   protocol  = "email"
-  endpoint  = "ahmed.mustafa9923@gmail.com" # your email
+  endpoint  = var.alert_email
 }
 
 resource "aws_cloudwatch_metric_alarm" "cpu_high" {
