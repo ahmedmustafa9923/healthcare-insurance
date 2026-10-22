@@ -7,3 +7,8 @@ variable "alert_email" {
   description = "Email address that receives SNS alarm notifications"
   type        = string
 }
+variable "admin_cidr" {
+  description = "Workstation public IP (x.x.x.x/32) allowed to reach the EKS API"
+  type        = string
+}
+
