@@ -1,0 +1,52 @@
+# Namespace + service account for the seeder.
+# The service account name matches the EKS Pod Identity association in seeder.tf,
+# so pods running as it get the IAM role that can write the 12 tables.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: data-seeder
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: data-seeder
+  namespace: data-seeder
+---
+# Indexed Job: 6 pods in parallel, index 0-5 = one carrier provision each
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-members
+  namespace: data-seeder
+spec:
+  completionMode: Indexed
+  completions: 6
+  parallelism: 6
+  backoffLimitPerIndex: 2          # retry a failed provision up to 2 times
+  ttlSecondsAfterFinished: 86400   # clean up the finished Job after 1 day
+  template:
+    metadata:
+      labels:
+        app: data-seeder
+    spec:
+      serviceAccountName: data-seeder
+      restartPolicy: Never
+      containers:
+        - name: seeder
+          image: 308281188883.dkr.ecr.us-east-1.amazonaws.com/healthcare/data-seeder:v1
+          env:
+            - name: TOTAL_MEMBERS
+              value: "500000"
+            - name: AWS_REGION
+              value: us-east-1
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
