@@ -1,0 +1,80 @@
+# MCP tool servers: internal-only (ClusterIP), one service account per server.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mcp-tools
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: member-data-mcp        # matches the Pod Identity association in mcp.tf
+  namespace: mcp-tools
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: member-data-mcp
+  namespace: mcp-tools
+spec:
+  replicas: 2                  # two copies on different nodes, so one can fail
+  selector:
+    matchLabels:
+      app: member-data-mcp
+  template:
+    metadata:
+      labels:
+        app: member-data-mcp
+    spec:
+      serviceAccountName: member-data-mcp
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: member-data-mcp
+      containers:
+        - name: server
+          image: 308281188883.dkr.ecr.us-east-1.amazonaws.com/healthcare/member-data-mcp:v1
+          ports:
+            - containerPort: 8000
+          env:
+            - name: AWS_REGION
+              value: us-east-1
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: member-data-mcp
+  namespace: mcp-tools
+spec:
+  type: ClusterIP              # reachable only from inside the cluster
+  selector:
+    app: member-data-mcp
+  ports:
+    - port: 80
+      targetPort: 8000
+

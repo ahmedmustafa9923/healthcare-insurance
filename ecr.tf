@@ -1,5 +1,5 @@
 locals {
-  apps = ["member-api", "worker", "chat-agent", "board-report", "data-seeder", "intake-worker"]
+  apps = ["member-api", "worker", "chat-agent", "board-report", "data-seeder", "intake-worker", "member-data-mcp"]
 }
 
 resource "aws_ecr_repository" "apps" {
