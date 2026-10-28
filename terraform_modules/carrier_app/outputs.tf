@@ -26,3 +26,11 @@ output "revenue_table_name" {
 output "revenue_table_arn" {
   value = aws_dynamodb_table.revenue.arn
 }
+output "leads_table_name" {
+  value = aws_dynamodb_table.leads.name
+}
+
+output "leads_table_arn" {
+  value = aws_dynamodb_table.leads.arn
+}
+
