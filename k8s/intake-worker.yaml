@@ -1,0 +1,52 @@
+# Intake worker: consumes S3 "new feed" events from SQS and loads leads/members.
+# Service account name matches the Pod Identity association in intake.tf.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: intake
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: intake-worker
+  namespace: intake
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intake-worker
+  namespace: intake
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: intake-worker
+  template:
+    metadata:
+      labels:
+        app: intake-worker
+    spec:
+      serviceAccountName: intake-worker
+      terminationGracePeriodSeconds: 60   # time to finish the current feed on shutdown
+      containers:
+        - name: worker
+          image: 308281188883.dkr.ecr.us-east-1.amazonaws.com/healthcare/intake-worker:v1
+          env:
+            - name: QUEUE_URL
+              value: https://sqs.us-east-1.amazonaws.com/308281188883/healthcare-intake
+            - name: AWS_REGION
+              value: us-east-1
+            - name: MAX_AUTO_ROWS
+              value: "5000"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+
