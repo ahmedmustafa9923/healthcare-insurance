@@ -103,6 +103,7 @@ resource "aws_iam_role" "github_apply" {
 # LEARNING-ACCOUNT SHORTCUT: broad rights so CI can apply anything in this stack.
 # Production would replace this with a scoped policy.
 resource "aws_iam_role_policy_attachment" "github_apply_admin" {
+  # checkov:skip=CKV_AWS_274: Accepted risk in this learning account. CI apply role needs broad rights to manage EKS/VPC/IAM; gated by the production environment approval. Follow-up: replace with a scoped policy.
   role       = aws_iam_role.github_apply.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
