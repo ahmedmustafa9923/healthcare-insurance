@@ -78,3 +78,79 @@ spec:
     - port: 80
       targetPort: 8000
 
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: member-records-mcp      # matches the Pod Identity association in mcp.tf
+  namespace: mcp-tools
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: member-records-mcp
+  namespace: mcp-tools
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: member-records-mcp
+  template:
+    metadata:
+      labels:
+        app: member-records-mcp
+    spec:
+      serviceAccountName: member-records-mcp
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: member-records-mcp
+      containers:
+        - name: server
+          image: 308281188883.dkr.ecr.us-east-1.amazonaws.com/healthcare/member-records-mcp:v1
+          ports:
+            - containerPort: 8000
+          env:
+            - name: AWS_REGION
+              value: us-east-1
+            - name: CHANGE_REQUESTS_TABLE
+              value: healthcare-change-requests
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: member-records-mcp
+  namespace: mcp-tools
+spec:
+  type: ClusterIP
+  selector:
+    app: member-records-mcp
+  ports:
+    - port: 80
+      targetPort: 8000
