@@ -55,7 +55,7 @@ jobs:
           terraform test
 
       - name: checkov (policy-as-code)
-        uses: bridgecrew/checkov-action@v12
+        uses: bridgecrewio/checkov-action@v12
         with:
           directory: .
           config_file: .checkov.yaml
