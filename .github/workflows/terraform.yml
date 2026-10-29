@@ -1,0 +1,167 @@
+name: terraform
+
+# PR   -> checks (fmt, validate, tflint, module tests, checkov) + plan with the READ-ONLY role, posted as a PR comment
+# merge -> checks + apply with the WRITE role, only after approval in the "production" environment
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: "1.17.0"
+  AWS_REGION: us-east-1
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_VAR_monitored_instance_id: ${{ vars.TF_VAR_MONITORED_INSTANCE_ID }}
+  TF_VAR_alert_email: ${{ vars.TF_VAR_ALERT_EMAIL }}
+  TF_VAR_admin_cidr: ${{ vars.TF_VAR_ADMIN_CIDR }}
+
+jobs:
+  checks:
+    name: Lint, test, policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      - name: Validate (no backend, no AWS access)
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.59.1
+
+      - name: tflint
+        run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --format compact
+
+      - name: Module unit tests (mock providers)
+        working-directory: terraform_modules/carrier_app
+        run: |
+          terraform init -backend=false
+          terraform test
+
+      - name: checkov (policy-as-code)
+        uses: bridgecrew/checkov-action@v12
+        with:
+          directory: .
+          config_file: .checkov.yaml
+
+  plan:
+    name: Plan (read-only)
+    if: github.event_name == 'pull_request'
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write        # OIDC token for AWS
+      pull-requests: write   # post the plan as a comment
+    concurrency:
+      group: plan-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Init
+        run: terraform init
+
+      - name: Plan
+        run: |
+          terraform plan -lock-timeout=5m -no-color -out=tfplan > plan.txt 2>&1 || { cat plan.txt; exit 1; }
+          terraform show -json tfplan > plan.json
+          grep -E '^Plan:|^No changes' plan.txt || true
+
+      - name: Count destroys
+        id: destroys
+        run: |
+          COUNT=$(jq '[.resource_changes[]? | select(.change.actions | index("delete"))] | length' plan.json)
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          jq -r '.resource_changes[]? | select(.change.actions | index("delete")) | "- " + .address' plan.json > destroys.txt
+
+      - name: Comment plan on the PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('plan.txt', 'utf8');
+            const summary = (plan.match(/^(Plan:.*|No changes.*)$/m) || ['(no summary)'])[0];
+            const destroys = fs.readFileSync('destroys.txt', 'utf8').trim();
+            const max = 60000;
+            const body = [
+              `### Terraform plan: \`${summary}\``,
+              destroys ? `> [!WARNING]\n> **This plan DESTROYS resources:**\n${destroys}\n> Add the \`allow-destroy\` label if this is intended.` : '',
+              '<details><summary>Full plan</summary>',
+              '',
+              '```',
+              plan.length > max ? plan.slice(0, max) + '\n... (truncated)' : plan,
+              '```',
+              '</details>',
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: context.issue.number, body,
+            });
+
+      - name: Block unintended destroys
+        if: steps.destroys.outputs.count != '0' && !contains(github.event.pull_request.labels.*.name, 'allow-destroy')
+        run: |
+          echo "::error::Plan destroys ${{ steps.destroys.outputs.count }} resource(s). Review the PR comment; add the 'allow-destroy' label if intended."
+          exit 1
+
+  apply:
+    name: Apply (production, needs approval)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: checks
+    runs-on: ubuntu-latest
+    environment: production   # GitHub pauses here until a required reviewer approves
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: terraform-apply
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Init
+        run: terraform init
+
+      - name: Plan
+        run: terraform plan -lock-timeout=5m -no-color -out=tfplan
+
+      - name: Apply the reviewed plan
+        run: terraform apply -lock-timeout=5m -no-color tfplan
+
