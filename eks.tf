@@ -10,7 +10,30 @@ module "eks" {
   endpoint_public_access_cidrs = [var.admin_cidr]
 
   # The identity running terraform becomes cluster admin
-  enable_cluster_creator_admin_permissions = true
+  enable_cluster_creator_admin_permissions = false
+
+  # Cluster admins are listed explicitly, so it does not matter WHO runs terraform
+  # (workstation or GitHub Actions). Key "cluster_creator" kept so the existing entry is unchanged.
+  access_entries = {
+    cluster_creator = {
+      principal_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/my-store-workstation"
+      policy_associations = {
+        admin = {
+          policy_arn   = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = { type = "cluster" }
+        }
+      }
+    }
+    github_apply = {
+      principal_arn = aws_iam_role.github_apply.arn
+      policy_associations = {
+        admin = {
+          policy_arn   = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = { type = "cluster" }
+        }
+      }
+    }
+  }
 
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
