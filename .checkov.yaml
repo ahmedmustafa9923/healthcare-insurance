@@ -1,0 +1,28 @@
+# Checkov (policy-as-code) settings for this repo.
+# Every skipped check is a documented, accepted risk. Anything NOT listed here fails the pipeline.
+# When a gap gets fixed, delete its line so the check is enforced again.
+framework:
+  - terraform
+compact: true
+quiet: true
+download-external-modules: false
+skip-path:
+  - .terraform
+skip-check:
+  # --- Accepted for this demo: synthetic data, single region ---
+  - CKV_AWS_119   # DynamoDB uses the AWS-managed KMS key, not a customer-managed key
+  - CKV_AWS_145   # S3 uses SSE-S3 (AES256), not KMS
+  - CKV_AWS_158   # CloudWatch log groups use default encryption, not KMS
+  - CKV_AWS_144   # No cross-region replication (single-region demo)
+  - CKV_AWS_18    # No S3 access logging yet (no central log bucket)
+  - CKV2_AWS_62   # Tenant buckets do not need event notifications
+  - CKV_AWS_338   # Log retention is 30 days for the demo
+  - CKV_AWS_26    # SNS alerts topic: the AWS-managed key breaks CloudWatch alarm delivery; needs a CMK + key policy
+  - CKV_AWS_149   # Secrets Manager uses the AWS-managed key, not a customer-managed key
+  - CKV2_AWS_57   # FRED API key is third-party; rotated manually at the provider, AWS cannot rotate it
+  - CKV_AWS_136   # ECR uses default AES256 encryption, not KMS
+  - CKV_TF_1      # Registry modules are pinned by version and recorded in .terraform.lock.hcl
+  # --- Known gaps, tracked in README "Known Issues" ---
+  - CKV_AWS_21    # Versioning on tenant buckets
+  - CKV2_AWS_61   # Lifecycle rules on tenant buckets
+  - CKV_AWS_319   # Tenant error alarms have actions disabled
